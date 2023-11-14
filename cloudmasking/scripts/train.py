@@ -19,13 +19,16 @@ def train_loop(args):
     lr = args.lr
     batch_size = args.batch_size
     threshold = args.threshold
+    random_resize_crop = None
+    if args.random_resize_crop is not None:
+        random_resize_crop = (args.random_resize_crop, args.random_resize_crop)
     disable_wandb = args.disable_wandb
 
 
     model = get_model(args.model)
 
-    train_dataset = CloudDataset(Path(args.train_dir))
-    val_dataset = CloudDataset(Path(args.val_dir))
+    train_dataset = CloudDataset(Path(args.train_dir), random_resize_crop=random_resize_crop)
+    val_dataset = CloudDataset(Path(args.val_dir), random_resize_crop=random_resize_crop)
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
     valid_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
 
@@ -106,6 +109,9 @@ def parse_args():
     # Model args
     parser.add_argument('-m', '--model', type=str, default='unet', help='Model to use. Supported values are (`unet`).')
     parser.add_argument('-th','--threshold', type=float, default=0.5, help='Threhold for the probability to become of certain class. If prob > 0.5, then class = 1.')
+
+    # Augmentation args
+    parser.add_argument('-rrc','--random_resize_crop', type=int, default=None, help='Random resize crop size. Expected an int, and it will be duplicated to keep square shape.')
 
     # Learning args
     parser.add_argument('--lr', type=float, default=0.005, help='Learning rate.')

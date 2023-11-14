@@ -14,9 +14,10 @@ class CloudDataset(Dataset):
     """
     CLASSES = ["background", "cloud"]
 
-    def __init__(self, tiles_dir: Path, max_dataset_len: int=None):
+    def __init__(self, tiles_dir: Path, random_resize_crop: tuple=None, max_dataset_len: int=None):
         """
         tiles_dir: Path to where tiles are stored
+        random_resize_crop: Applies random resize cropping to input image. If None, this augmentation is skipped.
         max_dataset_len: Maximum number of tiles to load for a dataset. Useful for fast iterations
         """
         images_dir = tiles_dir / "images"
@@ -30,18 +31,29 @@ class CloudDataset(Dataset):
         self.images = list()
         self.masks = list()
 
-        transforms = v2.Compose([
+        image_transforms = list()
+        mask_transforms = list()
+
+        image_transforms.extend([
             v2.ToImage(),
             v2.ToDtype(torch.float32, scale=True),
-            v2.RandomResizedCrop(size=(224, 224), antialias=True),
+        ])
+
+        if random_resize_crop is not None:
+            image_transforms.append(v2.RandomResizedCrop(size=random_resize_crop, antialias=True))
+            mask_transforms.append(v2.RandomResizedCrop(size=random_resize_crop, antialias=True))
+
+        image_transforms.extend([
             v2.ToPureTensor(),
             v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
 
-        mask_transforms = v2.Compose([
-            v2.RandomResizedCrop(size=(224, 224), antialias=True),
+        mask_transforms.extend([
             v2.ToPureTensor(),
         ])
+
+        image_transforms = v2.Compose(image_transforms)
+        mask_transforms = v2.Compose(mask_transforms)
 
         for image_path in images_dir.iterdir():
             if len(self.images) == dataset_actual_len:
@@ -59,7 +71,7 @@ class CloudDataset(Dataset):
             mask = mask_transforms(mask)
             mask = self._one_hot_encode(mask)
 
-            self.images.append(transforms(image))
+            self.images.append(image_transforms(image))
             self.masks.append(mask.float())
 
     def __getitem__(self, index):

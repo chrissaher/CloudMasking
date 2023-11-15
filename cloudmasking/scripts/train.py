@@ -106,6 +106,7 @@ def train_loop(args):
              best_model_wts = copy.deepcopy(model.state_dict())
              torch.save(model.state_dict(), checkpoint_dir / f"best_model_{epoch + 1}.pth")
 
+    torch.save(model.state_dict(), checkpoint_dir / f"best_model_final.pth")
 
 def parse_args():
     """
@@ -117,7 +118,7 @@ def parse_args():
     # parser.add_argument('--train', type=str, default='data/lettercounting-train.txt', help='path to train examples')
     # parser.add_argument('--dev', type=str, default='data/lettercounting-dev.txt', help='path to dev examples')
     parser.add_argument('--exp_id', type=str, required=True, help='Id of the experiment. Must be unique')
-    parser.add_argument('--output_dir', type=str, default='./output', help='path to store the output of training procedure.')
+    parser.add_argument('-od', '--output_dir', type=str, default='./output', help='path to store the output of training procedure.')
 
     # Data args
     parser.add_argument('-td', '--train_dir', type=str, help='Directory with training images and masks.')

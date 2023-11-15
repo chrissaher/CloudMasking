@@ -1,5 +1,6 @@
 import os
 import argparse
+import copy
 import wandb
 import numpy as np
 import torch
@@ -7,13 +8,20 @@ import torch.nn as nn
 from tqdm import tqdm
 from pathlib import Path
 from torch.utils.data import DataLoader
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score
 
 from cloudmasking.models.registry import get_model
 from cloudmasking.dataset.clouddataset import CloudDataset
 
 
 def train_loop(args):
+
+    output_dir = Path(args.output_dir) / args.exp_id
+    if output_dir.exists():
+        print(f"The experiment {args.exp_id} already exists. Chose a different experiment id.")
+        exit(0)
+    checkpoint_dir = output_dir / "checkpoints"
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     epochs = args.num_epochs
     lr = args.lr
@@ -37,6 +45,9 @@ def train_loop(args):
 
     optimizer = torch.optim.Adam([dict(params=model.parameters(), lr=lr)])
     model = model.to(device)
+
+    best_accuracy = 0
+    best_model_wts = copy.deepcopy(model.state_dict())
 
 
     for epoch in range(epochs):
@@ -90,6 +101,11 @@ def train_loop(args):
             wandb.log({'valid/recall': recall})
             wandb.log({'valid/f1': f1})
 
+        if accuracy > best_accuracy:
+             best_accuracy = accuracy
+             best_model_wts = copy.deepcopy(model.state_dict())
+             torch.save(model.state_dict(), checkpoint_dir / f"best_model_{epoch + 1}.pth")
+
 
 def parse_args():
     """
@@ -100,7 +116,8 @@ def parse_args():
     # parser.add_argument('--task', type=str, default='BEFORE', help='task to run (BEFORE or BEFOREAFTER)')
     # parser.add_argument('--train', type=str, default='data/lettercounting-train.txt', help='path to train examples')
     # parser.add_argument('--dev', type=str, default='data/lettercounting-dev.txt', help='path to dev examples')
-    # parser.add_argument('--output_bundle_path', type=str, default='classifier-output.json', help='path to write the results json to (you should not need to modify)')
+    parser.add_argument('--exp_id', type=str, required=True, help='Id of the experiment. Must be unique')
+    parser.add_argument('--output_dir', type=str, default='./output', help='path to store the output of training procedure.')
 
     # Data args
     parser.add_argument('-td', '--train_dir', type=str, help='Directory with training images and masks.')
@@ -139,7 +156,7 @@ def wandb_setup(args):
     wandb.login(key=api_key)
     kwargs = {
         "project": project,
-        "name": wandb.util.generate_id(),
+        "name": args.exp_id,
         "config": vars(args),
         "allow_val_change": False,
         "resume": "never",
@@ -156,7 +173,6 @@ def main():
         wandb_setup(args)
 
     train_loop(args)
-
 
 
 if __name__ == '__main__':

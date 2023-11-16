@@ -5,6 +5,7 @@ import wandb
 import numpy as np
 import torch
 import torch.nn as nn
+import torchmetrics as tm
 from tqdm import tqdm
 from pathlib import Path
 from torch.utils.data import DataLoader
@@ -27,6 +28,7 @@ def train_loop(args):
     lr = args.lr
     batch_size = args.batch_size
     threshold = args.threshold
+    patience = args.patience
     random_resize_crop = None
     if args.random_resize_crop is not None:
         random_resize_crop = (args.random_resize_crop, args.random_resize_crop)
@@ -44,15 +46,23 @@ def train_loop(args):
     criterion = nn.BCELoss()
 
     optimizer = torch.optim.Adam([dict(params=model.parameters(), lr=lr)])
-    model = model.to(device)
+    scheduler = None
+    if patience > 0:
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=patience)
 
+    model = model.to(device)
+    
     best_accuracy = 0
     best_model_wts = copy.deepcopy(model.state_dict())
 
+    binary_acc_metric = tm.classification.BinaryAccuracy(threshold=threshold)
+    precision = tm.classification.BinaryPrecision(threshold=threshold)
+    recall = tm.classification.BinaryRecall(threshold=threshold)
 
     for epoch in range(epochs):
         print(f"Epoch {epoch + 1}")
         _ = model.train()
+        train_losses = list()
         for index, batch in tqdm(enumerate(train_dataloader)):
             input_data, mask = batch
             input_data = input_data.to(device)
@@ -62,6 +72,7 @@ def train_loop(args):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            train_losses.append(loss.item())
             if not disable_wandb:
                 wandb.log({'train/loss': loss.cpu().item()})
 
@@ -76,33 +87,38 @@ def train_loop(args):
             output = model(input_data)
             valid_losses.append(loss.cpu().item())
 
-            pred_mask = output > threshold
-            pred_mask = pred_mask.view(-1).cpu().numpy()
-            true_masks = mask.view(-1).cpu().numpy()
+            # For torch metric
+            bacc = binary_acc_metric(output.view(-1), mask.view(-1))
+            pre = precision(output.view(-1), mask.view(-1))
+            rec = recall(output.view(-1), mask.view(-1))
 
-            all_preds.extend(pred_mask)
-            all_true.extend(true_masks)
-
-        # Convert lists to numpy arrays
-        all_preds = np.array(all_preds)
-        all_true = np.array(all_true)
 
         # Calculate metrics
-        accuracy = accuracy_score(all_true, all_preds)
-        precision = precision_score(all_true, all_preds)
-        recall = recall_score(all_true, all_preds)
-        f1 = 2 * precision * recall / (precision + recall) #f1_score(all_true, all_preds)
+        acc = binary_acc_metric.compute()
+        pre = precision.compute()
+        rec = recall.compute()
+        f1 = 2 * precision * recall / (precision + recall)
+        f1 = f1.compute().item()
+
+        binary_acc_metric.reset()
+        precision.reset()
+        recall.reset()
 
         # Log to wandb
         if not disable_wandb:
             wandb.log({'valid/loss': np.average(valid_losses)})
-            wandb.log({'valid/accuracy': accuracy})
-            wandb.log({'valid/precision': precision})
-            wandb.log({'valid/recall': recall})
+            wandb.log({'valid/accuracy': acc})
+            wandb.log({'valid/precision': pre})
+            wandb.log({'valid/recall': rec})
             wandb.log({'valid/f1': f1})
 
-        if accuracy > best_accuracy:
-             best_accuracy = accuracy
+            wandb.log({'train/lr': optimizer.param_groups[0]['lr']})
+
+        if scheduler is not None:
+            scheduler.step(np.mean(train_losses))
+
+        if acc > best_accuracy:
+             best_accuracy = acc
              best_model_wts = copy.deepcopy(model.state_dict())
              torch.save(model.state_dict(), checkpoint_dir / f"best_model_{epoch + 1}.pth")
 
@@ -135,7 +151,7 @@ def parse_args():
     parser.add_argument('--lr', type=float, default=0.005, help='Learning rate.')
     parser.add_argument('-bs', '--batch_size', type=int, default=32, help='Training batch size; 1 by default and you do not need to batch unless you want to.')
     parser.add_argument('-ne', '--num_epochs', type=int, default=10, help='Number of epochs to train for.')
-    # parser.add_argument('-p', '--patience', type=int, default=0, help='patience of the scheduler')
+    parser.add_argument('-p', '--patience', type=int, default=0, help='patience of the scheduler')
 
     # Wandb args
     parser.add_argument('--disable_wandb', action='store_true', help='Disable wandb logging.')

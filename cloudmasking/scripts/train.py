@@ -51,13 +51,13 @@ def train_loop(args):
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=patience)
 
     model = model.to(device)
-    
+
     best_accuracy = 0
     best_model_wts = copy.deepcopy(model.state_dict())
 
-    binary_acc_metric = tm.classification.BinaryAccuracy(threshold=threshold)
-    precision = tm.classification.BinaryPrecision(threshold=threshold)
-    recall = tm.classification.BinaryRecall(threshold=threshold)
+    binary_acc_metric = tm.classification.BinaryAccuracy(threshold=threshold).to(device)
+    precision = tm.classification.BinaryPrecision(threshold=threshold).to(device)
+    recall = tm.classification.BinaryRecall(threshold=threshold).to(device)
 
     for epoch in range(epochs):
         print(f"Epoch {epoch + 1}")
@@ -94,11 +94,10 @@ def train_loop(args):
 
 
         # Calculate metrics
-        acc = binary_acc_metric.compute()
-        pre = precision.compute()
-        rec = recall.compute()
-        f1 = 2 * precision * recall / (precision + recall)
-        f1 = f1.compute().item()
+        acc = binary_acc_metric.compute().cpu().item()
+        pre = precision.compute().cpu().item()
+        rec = recall.compute().cpu().item()
+        f1 = 2 * pre * rec / (pre + rec)        
 
         binary_acc_metric.reset()
         precision.reset()

@@ -9,3 +9,8 @@ segmentation-models-pytorch
 wandb
 scikit-learn
 torchmetrics
+mmsegmentation
+mmcv
+ftfy
+regex
+mmengine

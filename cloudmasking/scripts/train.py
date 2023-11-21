@@ -9,7 +9,6 @@ import torchmetrics as tm
 from tqdm import tqdm
 from pathlib import Path
 from torch.utils.data import DataLoader
-from sklearn.metrics import accuracy_score, precision_score, recall_score
 
 from cloudmasking.models.registry import get_model
 from cloudmasking.dataset.clouddataset import CloudDataset
@@ -97,7 +96,7 @@ def train_loop(args):
         acc = binary_acc_metric.compute().cpu().item()
         pre = precision.compute().cpu().item()
         rec = recall.compute().cpu().item()
-        f1 = 2 * pre * rec / (pre + rec)        
+        f1 = 2 * pre * rec / (pre + rec)
 
         binary_acc_metric.reset()
         precision.reset()
@@ -140,7 +139,7 @@ def parse_args():
     parser.add_argument('-vd', '--val_dir', type=str, help='Directory with valdation images and masks.')
 
     # Model args
-    parser.add_argument('-m', '--model', type=str, default='unet', help='Model to use. Supported values are (`unet`).')
+    parser.add_argument('-m', '--model', type=str, default='unet', help='Model to use. Supported values are (`unet`, `segformer`).')
     parser.add_argument('-th','--threshold', type=float, default=0.5, help='Threhold for the probability to become of certain class. If prob > 0.5, then class = 1.')
 
     # Augmentation args

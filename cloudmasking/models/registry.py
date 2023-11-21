@@ -1,7 +1,9 @@
 from cloudmasking.models.unet import get_model as get_unet_model
+from cloudmasking.models.segformer import get_model as get_segformer_model
 
 models = {
-    'unet': get_unet_model
+    'unet': get_unet_model,
+    'segformer': get_segformer_model,
 }
 
 def get_model(model_name):

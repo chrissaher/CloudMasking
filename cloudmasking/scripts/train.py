@@ -139,7 +139,7 @@ def parse_args():
     parser.add_argument('-vd', '--val_dir', type=str, help='Directory with valdation images and masks.')
 
     # Model args
-    parser.add_argument('-m', '--model', type=str, default='unet', help='Model to use. Supported values are (`unet`, `segformer`).')
+    parser.add_argument('-m', '--model', type=str, default='unet', help='Model to use. Supported values are (`unet`, `segformer`, `deeplabv3`).')
     parser.add_argument('-th','--threshold', type=float, default=0.5, help='Threhold for the probability to become of certain class. If prob > 0.5, then class = 1.')
 
     # Augmentation args

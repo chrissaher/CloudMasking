@@ -87,9 +87,9 @@ def train_loop(args):
             valid_losses.append(loss.cpu().item())
 
             # For torch metric
-            bacc = binary_acc_metric(output.view(-1), mask.view(-1))
-            pre = precision(output.view(-1), mask.view(-1))
-            rec = recall(output.view(-1), mask.view(-1))
+            bacc = binary_acc_metric(output.reshape(-1), mask.reshape(-1))
+            pre = precision(output.reshape(-1), mask.reshape(-1))
+            rec = recall(output.reshape(-1), mask.reshape(-1))
 
 
         # Calculate metrics

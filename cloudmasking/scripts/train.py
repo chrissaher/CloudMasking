@@ -5,6 +5,7 @@ import wandb
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torchmetrics as tm
 from tqdm import tqdm
 from pathlib import Path
@@ -13,6 +14,26 @@ from torch.utils.data import DataLoader
 from cloudmasking.models.registry import get_model
 from cloudmasking.dataset.clouddataset import CloudDataset
 
+
+class FocalLoss(nn.Module):
+    def __init__(self, weight=None, size_average=True):
+        super(FocalLoss, self).__init__()
+
+    def forward(self, inputs, targets, alpha=0.8, gamma=2, smooth=1):
+        
+        #comment out if your model contains a sigmoid or equivalent activation layer
+        inputs = F.sigmoid(inputs)       
+        
+        #flatten label and prediction tensors
+        inputs = inputs.reshape(-1)
+        targets = targets.reshape(-1)
+        
+        #first compute binary cross-entropy 
+        BCE = F.binary_cross_entropy(inputs, targets, reduction='mean')
+        BCE_EXP = torch.exp(-BCE)
+        focal_loss = alpha * (1-BCE_EXP)**gamma * BCE
+                       
+        return focal_loss
 
 def train_loop(args):
 
@@ -27,6 +48,7 @@ def train_loop(args):
     lr = args.lr
     batch_size = args.batch_size
     threshold = args.threshold
+    criterion = args.criterion
     patience = args.patience
     random_resize_crop = None
     if args.random_resize_crop is not None:
@@ -42,7 +64,7 @@ def train_loop(args):
     valid_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    criterion = nn.BCELoss()
+    criterion = nn.BCELoss() if args.criterion == "bce" else FocalLoss()
 
     optimizer = torch.optim.Adam([dict(params=model.parameters(), lr=lr)])
     scheduler = None
@@ -133,6 +155,9 @@ def parse_args():
     # parser.add_argument('--dev', type=str, default='data/lettercounting-dev.txt', help='path to dev examples')
     parser.add_argument('--exp_id', type=str, required=True, help='Id of the experiment. Must be unique')
     parser.add_argument('-od', '--output_dir', type=str, default='./output', help='path to store the output of training procedure.')
+
+    # Optimization args
+    parser.add_argument('-c','--criterion', type=str, default='bce', help='Loss function. Supported values are `bce`, `focal`.')
 
     # Data args
     parser.add_argument('-td', '--train_dir', type=str, help='Directory with training images and masks.')
